@@ -1,0 +1,5 @@
+VERSION="0.1"
+dkms add -m helloworld -v $VERSION
+dkms build -m helloworld -v $VERSION
+dkms install -m helloworld -v $VERSION
+modprobe helloworld

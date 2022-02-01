@@ -1,0 +1,8 @@
+Package: helloworld
+Version: 0.1-1
+Section: base
+Priority: optional
+Architecture: amd64
+Depends: dkms
+Maintainer: Kris Lamoureux <kris@lamoureux.io>
+Description: hello, world
