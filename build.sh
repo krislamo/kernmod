@@ -42,7 +42,7 @@ function install_headers {
 
 # Build and install helloworld module or module(s) in $SCRATCH
 set -x
-if [ ! -z "$(ls -Al /vagrant/scratch/ | grep -e ^d)" ]; then
+if [ ! -z "$(ls -Al $SCRATCH | grep -e ^d)" ]; then
   cd "$SCRATCH"
   for d in */ ; do
     if [ -f "$(basename $d)/override.sh" ]; then
