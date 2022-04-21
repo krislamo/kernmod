@@ -22,6 +22,13 @@ function check_distro {
   fi
 }
 
+# Install Linux headers for current debian kernel
+function debian_headers {
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update
+  apt-get install -y linux-headers-$(uname -r)
+}
+
 # Build debian package
 function build_deb {
   [ $INSTALL -eq 1 ] && debian_headers
@@ -33,6 +40,12 @@ function build_deb {
   cp -r $SRCDIR/DEBIAN/* "$BUILDDIR/DEBIAN"
   cd "$TEMPDIR"
   dpkg-deb --build "${PACKAGE}_$VERSION-$REVISION"
+}
+
+# Install Linux headers for current rhel kernel
+function rhel_headers {
+  KERNEL_VERSION="$(uname -r | rev | cut -d '.' -f 2- | rev)"
+  yum install -y kernel-headers-"$KERNEL_VERSION" kernel-devel
 }
 
 # Build redhat package
@@ -60,54 +73,45 @@ function info_mod {
   cat /var/log/messages | grep "$PACKAGE"
 }
 
-# Install Linux headers for current debian kernel
-function debian_headers {
-  export DEBIAN_FRONTEND=noninteractive
-  apt-get update
-  apt-get install -y linux-headers-$(uname -r)
-}
-
-# Install Linux headers for current rhel kernel
-function rhel_headers {
-  KERNEL_VERSION="$(uname -r | rev | cut -d '.' -f 2- | rev)"
-  yum install -y kernel-headers-"$KERNEL_VERSION" kernel-devel
-}
-
-# Find GNU/Linux distribution
-set -x
-DISTRO="$(check_distro)"
-if [ $DISTRO -eq 0 ]; then
-  echo "ERROR: GNU/Linux distribution not detected"
-  exit -1
-fi
-
-# Build and install helloworld module or module(s) in $SCRATCH
-if [ ! -z "$(ls -Al $SCRATCH | grep -e ^d)" ]; then
-  cd "$SCRATCH"
-  for d in */ ; do
-    if [ -f "$(basename $d)/override.sh" ]; then
-      SRCDIR="$(pwd)/$(basename $d)"
-      . "$(basename $d)/override.sh"
-      [ $DISTRO -eq 1 ] && build_deb
-      [ $DISTRO -eq 2 ] && build_rpm
-      if [ $INSTALL -eq 1 ]; then
-        apt-get install -y "./${PACKAGE}_$VERSION-$REVISION.deb"
-        info_mod
-      fi
-      cp "./${PACKAGE}_$VERSION-$REVISION.deb" \
-         "$OUTDIR/${PACKAGE}_$VERSION-$REVISION-$(date +%s).deb"
-    fi
-  done
-else
-  INSTALL=1
-  if [ $DISTRO -eq 1 ]; then
+# Build and install (optional)
+function build_install {
+  DISTRO="$(check_distro)"
+  if [ $DISTRO -eq 0 ]; then
+    echo "ERROR: GNU/Linux distribution not detected"
+    exit -1
+  elif [ $DISTRO -eq 1 ]; then
     build_deb
-    apt-get install -y "./${PACKAGE}_$VERSION-$REVISION.deb"
+    [ $INSTALL -eq 1 ] && apt-get install -y "./${PACKAGE}_$VERSION-$REVISION.deb"
   elif [ $DISTRO -eq 2 ]; then
     build_rpm
-    yum install -y epel-release
-    yum install -y dkms
-    rpm -i "~/rpmbuild/RPMS/noarch/$PACKAGE-$VERSION-$REVISION.$EL_VER.noarch.rpm"
+    if [ $INSTALL -eq 1 ]; then
+      yum install -y epel-release
+      yum install -y dkms
+      rpm -i "~/rpmbuild/RPMS/noarch/$PACKAGE-$VERSION-$REVISION.$EL_VER.noarch.rpm"
+    fi
   fi
   info_mod
+}
+
+# Build and install helloworld module or module(s) in $SCRATCH
+function main_routine {
+  if [ ! -z "$(ls -Al $SCRATCH | grep -e ^d)" ]; then
+    cd "$SCRATCH"
+    for d in */ ; do
+      if [ -f "$(basename $d)/override.sh" ]; then
+        SRCDIR="$(pwd)/$(basename $d)"
+        . "$(basename $d)/override.sh"
+        build_install
+      fi
+    done
+  else
+    INSTALL=1
+    build_install
+  fi
+}
+
+# Program starts here unless KERNMOD_MAIN is not 0
+if [ "${KERNMOD_MAIN:-0}" -eq 0 ]; then
+  set -x
+  main_routine
 fi

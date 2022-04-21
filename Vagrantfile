@@ -3,6 +3,8 @@ if !VAGRANT_BOX || VAGRANT_BOX == "debian"
   VAGRANT_BOX = "debian/bullseye64"
 elsif VAGRANT_BOX == "rocky"
   VAGRANT_BOX = "rockylinux/8"
+elsif VAGRANT_BOX == "centos"
+  VAGRANT_BOX = "centos/7"
 end
 
 Vagrant.configure("2") do |config|
