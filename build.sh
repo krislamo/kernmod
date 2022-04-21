@@ -17,7 +17,7 @@ BUILDDIR="$TEMPDIR/${PACKAGE}_$VERSION-$REVISION"
 # 2 = rocky/centos/rhel
 function check_distro {
   if [ -f /etc/debian_version ]; then echo 1
-  elif [ -f /etc/rocky-release ] || [ -f /etc/centos-release ]; then echo 2
+  elif [ -f /etc/redhat-release ]; then echo 2
   else echo 0
   fi
 }
@@ -37,7 +37,18 @@ function build_deb {
 
 # Build redhat package
 function build_rpm {
+  EL_VER="$(uname -r | awk 'match($0,/el[0-9]/) {print substr($0, RSTART, RLENGTH)}')"
   [ $INSTALL -eq 1 ] && rhel_headers
+  yum install -y rpm-build rpmdevtools rpmlint
+  rpmdev-setuptree
+  mkdir -p "$BUILDDIR/${PACKAGE}-${VERSION}"
+  cp -r $SRCDIR/* "$BUILDDIR/${PACKAGE}-${VERSION}"
+  rm -rf ~/rpmbuild/SOURCES/$PACKAGE-$VERSION.tar.gz
+  (cd $BUILDDIR &&
+  tar -czvf ~/rpmbuild/SOURCES/$PACKAGE-$VERSION.tar.gz $PACKAGE-$VERSION)
+  cp $SRCDIR/$PACKAGE.spec ~/rpmbuild/SPECS/
+  rpmlint ~/rpmbuild/SPECS/$PACKAGE.spec &&
+  rpmbuild -bb ~/rpmbuild/SPECS/$PACKAGE.spec
 }
 
 # Display details on module
@@ -58,8 +69,8 @@ function debian_headers {
 
 # Install Linux headers for current rhel kernel
 function rhel_headers {
-  VERSION="$(uname -r | rev | cut -d '.' -f 2- | rev)"
-  yum install -y kernel-headers-"$VERSION"
+  KERNEL_VERSION="$(uname -r | rev | cut -d '.' -f 2- | rev)"
+  yum install -y kernel-headers-"$KERNEL_VERSION" kernel-devel
 }
 
 # Find GNU/Linux distribution
@@ -94,8 +105,9 @@ else
     apt-get install -y "./${PACKAGE}_$VERSION-$REVISION.deb"
   elif [ $DISTRO -eq 2 ]; then
     build_rpm
-    echo "end of debug: exiting..."
-    exit 0
-    yum install -y "./${PACKAGE}_$VERSION-$REVISION.rpm"
+    yum install -y epel-release
+    yum install -y dkms
+    rpm -i "~/rpmbuild/RPMS/noarch/$PACKAGE-$VERSION-$REVISION.$EL_VER.noarch.rpm"
   fi
+  info_mod
 fi
